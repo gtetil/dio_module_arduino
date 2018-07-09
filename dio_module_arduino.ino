@@ -57,13 +57,15 @@ int ai_threshold = 512;
 byte card_address = 0;
 unsigned long main_timer = millis();
 byte data = 0;
+byte prev_data = 0;
 byte message[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 unsigned long can_filter = 0x00100000; //nibble 5 is to identify this is for the output message (input from RPi)
 unsigned long can_filter_address = 0;
+int sent_msg;
 
 void setup() {
   
-  //Serial.begin(115200);  
+  //Serial.begin(115200); 
 
   //setup digitals
   pinMode(do_0_pin, OUTPUT);
@@ -78,7 +80,7 @@ void setup() {
 
   //create card address
   address_bit_0_state = !digitalRead(address_bit_0_pin);
-  address_bit_1_state = !readAnalogDI(address_bit_1_pin);
+  address_bit_1_state = readAnalogDI(address_bit_1_pin);
   address_bit_2_state = !digitalRead(address_bit_2_pin);
   bitWrite(card_address, 0, address_bit_0_state);
   bitWrite(card_address, 1, address_bit_1_state);
@@ -86,6 +88,7 @@ void setup() {
 
   can_filter_address = card_address << 16; //shift address into correct spot
   can_filter = can_filter | can_filter_address;
+  //can_filter = 0x00100000;
 
   //CAN setup
   CAN0.begin(MCP_STDEXT, CAN_500KBPS, MCP_16MHZ);
@@ -118,7 +121,6 @@ void loop() {
   if ((millis() - main_timer) >= 200) {
     main_timer = millis();
     digitalInputs();
-    CAN0.sendMsgBuf(card_address, 0, 8, message);  //id, standard frame, data len, data buf
     //Serial.println(card_address);
     //Serial.println(message[0]);
   }
@@ -150,6 +152,7 @@ void digitalInputs() {
   bitWrite(data, 6, ignition_state);
 
   message[0] = data;
+  sent_msg = CAN0.sendMsgBuf(card_address, 0, 8, message);  //id, standard frame, data len, data buf
 }
 
 int readAnalogDI(int pin) {
@@ -166,7 +169,7 @@ void checkCAN() {
 
   if(!digitalRead(2)) { // If pin 2 is low, read receive buffer
     CAN0.readMsgBuf(&rxId, &len, rxBuf); // Read data: len = data length, buf = data byte(s)
-    output_data = rxBuf[0];
+    output_data = rxBuf[7];
 
     digitalOutput("DO_0", bitRead(output_data, 0));
     digitalOutput("DO_1", bitRead(output_data, 1));
